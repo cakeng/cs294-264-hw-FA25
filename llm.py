@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+import openai
 
 class LLM(ABC):
     """Abstract base class for Large Language Models."""
@@ -26,9 +26,20 @@ class OpenAIModel(LLM):
         # TODO(student): Initialize your OpenAI client or chosen LLM provider here.
         self.stop_token = stop_token
         self.model_name = model_name
-        raise NotImplementedError("OpenAIModel.__init__ must be implemented by the student")
+        self.client = openai.OpenAI()
 
     def generate(self, prompt: str) -> str:
         # TODO(student): Call the model, obtain text, and ensure the stop token is present.
         # Return the raw text including the terminal stop token required by the parser.
-        raise NotImplementedError("OpenAIModel.generate must be implemented by the student")
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        content = response.choices[0].message.content or ""
+        if not content.endswith(self.stop_token):
+            content = f"{content}{self.stop_token}"
+        return content
+
+if __name__ == "__main__":
+    llm = OpenAIModel("----END_FUNCTION_CALL----", "gpt-5-mini")
+    print(llm.generate("What is the capital of France?"))

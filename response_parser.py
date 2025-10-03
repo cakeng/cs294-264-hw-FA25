@@ -1,3 +1,13 @@
+def g_str(s): # green
+    return "\033[32m" + s + "\033[0m"
+def r_str(s): # red
+    return "\033[31m" + s + "\033[0m"
+def b_str(s): # blue
+    return "\033[34m" + s + "\033[0m"
+def y_str(s): # yellow
+    return "\033[33m" + s + "\033[0m"
+
+
 class ResponseParser:
     """
     Parses LLM responses to extract a single function call using a rigid textual format.
@@ -33,11 +43,40 @@ arg2_value (can be multiline)
 
         Returns a dictionary: {"thought": str, "name": str, "arguments": dict}
         """
-        # TODO(student): Implement rfind-based parsing per the assignment description.
-        # Hints:
-        # - Find END_CALL via rfind; then find the matching BEGIN_CALL before it via rfind
-        # - Everything before BEGIN_CALL is the model's thought
-        # - Between BEGIN_CALL and END_CALL: first block is function name, subsequent blocks
-        #   are argument name/value pairs separated by ARG_SEP, values may be multiline
-        # - Raise ValueError on malformed inputs
-        raise NotImplementedError("ResponseParser.parse must be implemented by the student")
+        end_idx = text.rfind(self.END_CALL)
+        if end_idx == -1:
+            raise ValueError("Missing END_CALL token")
+        begin_idx = text.rfind(self.BEGIN_CALL, 0, end_idx)
+        if begin_idx == -1:
+            raise ValueError("Missing BEGIN_CALL before END_CALL")
+
+        thought = text[:begin_idx].rstrip()
+        inner = text[begin_idx + len(self.BEGIN_CALL):end_idx]
+        inner = inner.strip()
+
+        # Split by ARG_SEP blocks. The first block contains only the function name.
+        parts = inner.split(self.ARG_SEP)
+        if not parts or not parts[0].strip():
+            raise ValueError("Missing function name block")
+
+        name = parts[0].strip().splitlines()[0].strip()
+        if not name:
+            raise ValueError("Empty function name")
+
+        arguments = {}
+        # Each subsequent block corresponds to a single argument block:
+        # first line is the arg name; remaining lines form the value (can be multiline).
+        for block in parts[1:]:
+            cleaned = block.strip("\n")
+            if not cleaned.strip():
+                continue
+            lines = cleaned.splitlines()
+            if not lines:
+                continue
+            arg_name = lines[0].strip()
+            if not arg_name:
+                raise ValueError("Empty argument name")
+            arg_value = "\n".join(lines[1:]).strip()
+            arguments[arg_name] = arg_value
+
+        return {"thought": thought, "name": name, "arguments": arguments}

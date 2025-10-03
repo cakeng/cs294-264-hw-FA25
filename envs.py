@@ -68,7 +68,7 @@ class DumbEnvironment:
     Dumb environment that just executes the command
     """
 
-    def execute(self, command: str) -> str:
+    def run_bash_cmd(self, command: str) -> str:
         """
         Run the command in bash and return the output
 
