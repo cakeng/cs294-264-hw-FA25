@@ -82,9 +82,9 @@ class ReactAgent:
             "children": [],
         }
 
-        print(g_str(f"Adding message ") + f"{unique_id}" + 
-              y_str(f", Role: ") + f"{role}" + 
-              y_str(f", parent: ") + f"{self.current_message_id}\n" + f"{content}")
+        # print(g_str(f"Adding message ") + f"{unique_id}" + 
+        #       y_str(f", Role: ") + f"{role}" + 
+        #       y_str(f", parent: ") + f"{self.current_message_id}\n" + f"{content}")
 
         # Link with parent
         if self.current_message_id != -1:
@@ -130,7 +130,7 @@ class ReactAgent:
         # The system node content is already set; message_id_to_context will inject tools/format.
         # No further action needed here beyond registration.
     
-    def finish(self, result: str):
+    def finish(self, result: str, **kwargs):
         """The agent must call this function with the final result when it has solved the given task. The function calls "git add -A and git diff --cached" to generate a patch and returns the patch as submission.
 
         Args: 
@@ -139,6 +139,8 @@ class ReactAgent:
         Returns:
             The result passed as an argument.  The result is then returned by the agent's run method.
         """
+        if kwargs:
+            results = results + "\n".join([f"{k}\n{v}".strip() for k, v in kwargs.items() if (k or v)])
         return result 
 
     def add_instructions_and_backtrack(self, instructions: str, at_message_id: int):
@@ -238,8 +240,13 @@ class ReactAgent:
             )
         elif message["role"] == "instructor":
             return f"{header}YOU MUST FOLLOW THE FOLLOWING INSTRUCTIONS AT ANY COST. OTHERWISE, YOU WILL BE DECOMISSIONED." +\
-                    f"WHEN CALLING 'finish', MAKE SURE TO INCLUDE THE RESULT OF THE TASK AS THE ARGUMENT VALUE, NOT AS A " + \
-                    f"SEPARATE ARGUMENT.\nINSTRUCTIONS:\n{content}\n"
+                    f"WHEN CALLING TOOLS, MAKE SURE TO INCLUDE BOTH THE ARGUMENT NAME AND VALUE OF EACH ARGUMENT WITHIN AN " + \
+                    f"SINGLE ARGUMENT BLOCK, NOT ACROSS MULTIPLE ARGUMENT BLOCKS. ALSO, MAKE SURE TO RETURN ONLY A SINGLE " + \
+                    f"END FUNCTION CALL BLOCK. " + \
+                    f"THE CHANGES YOU MAKE WILL BE LATER EVALUATED USING 'git add -A && git diff --cached'. BEFORE CALLING 'finish', " + \
+                    f"MAKE SURE TO CHECK IF THE PATCH IS GENERATED CORRECTLY BY RUNNING 'git add -A && git diff --cached', " + \
+                    f"AND RETURNING THE RESULTS TO SEE IF THE CHANGES ARE DETECTED. IF NOTHING IS DETECTED, MAKE SURE TO ADD THE " + \
+                    f"SPECIFIC FILE TO THE REPO USING 'git add <FILE_PATH>'. INSTRUCTIONS:\n{content}\n"
         else:
             return f"{header}{content}\n"
 

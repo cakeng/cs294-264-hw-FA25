@@ -5,6 +5,7 @@ from pathlib import Path
 
 import typer
 from datasets import load_dataset
+from datetime import datetime
 
 from utils import save_traj, update_preds_file, remove_from_preds_file, get_sb_environment
 
@@ -57,8 +58,8 @@ def process_instance(
         # Initialize the agent
         agent = ReactAgent("swe-agent", parser, llm)
         # Register tools available to the agent
-        agent.add_functions([env.run_bash_cmd])
-        # agent.add_functions([env.replace_in_file, env.show_file, agent.add_instructions_and_backtrack])
+        agent.add_functions([env.run_bash_cmd, env.replace_in_file, env.show_file, env.generate_patch])
+        agent.add_functions([agent.add_instructions_and_backtrack])
         # Run the agent
         output = agent.run(task, max_steps)         
         
@@ -88,13 +89,15 @@ def main(
     max_steps: int = typer.Option(100, "--max-steps", help="Maximum number of steps", rich_help_panel="Basic"),
     # NOTE: provide any extra arguments if needed
 ) -> None:
+    time_str = datetime.now().strftime("%H-%M-%S")
+    output = f"{output}_{time_str}"
     output_path = Path(output)
     output_path.mkdir(parents=True, exist_ok=True)
     print(f"Results will be saved to {output_path}")
 
     dataset_path = DATASET_MAPPING.get(subset, subset)
     print(f"Loading dataset {dataset_path}, split {split}...")
-    instances = list(load_dataset(dataset_path, split=split))[:1]
+    instances = list(load_dataset(dataset_path, split=split))
     print(f"Running on {len(instances)} instances...")
 
     def process_futures(futures: dict[concurrent.futures.Future, str]):

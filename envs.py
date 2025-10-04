@@ -1,6 +1,9 @@
 from utils import get_sb_environment
 import subprocess
 
+def y_str(s): # yellow
+    return "\033[33m" + s + "\033[0m"
+
 class LimitsExceeded(Exception):
     """Raised when the agent has reached its step limit."""
 
@@ -43,6 +46,7 @@ class SWEEnvironment:
         """
         try:
             patch_output = self.env.execute("git add -A && git diff --cached")
+            print(y_str(f"Patch output: ") + f"{patch_output}")
             if patch_output["output"].strip():
                 return patch_output
             else:
@@ -55,44 +59,32 @@ class SWEEnvironment:
         """
         [Optional] Replace the content of the file from the given line to the given line with the given content
         """
-        # Validate input
-        if from_line < 1 or to_line < 1:
-            raise ValueError("Line numbers must be >= 1")
-        if to_line < from_line:
-            raise ValueError("to_line must be >= from_line")
+        from_line = int(str(from_line).strip())
+        to_line = int(str(to_line).strip()) 
+        if from_line < 1 or to_line < 1 or to_line < from_line:
+            raise ValueError("Invalid line range")
 
-        # Read file from the SWEBench environment
-        try:
-            original = self.env.execute(f"cat {file_path}")
-        except Exception as e:
-            raise ValueError(f"Failed to read file '{file_path}': {e}")
+        # Read file
+        res = self.env.execute(f"cat {file_path}")
+        original = res.get("output", "") if isinstance(res, dict) else str(res)
 
         lines = original.splitlines()
-        start_idx = from_line - 1
-        end_idx_inclusive = to_line - 1
-        if start_idx > len(lines):
-            raise ValueError("from_line exceeds total number of lines in file")
+        start = from_line - 1
+        end = to_line - 1
+        if start > len(lines):
+            raise ValueError("from_line exceeds total number of lines")
 
-        # Build new content
-        before = lines[:start_idx]
-        after = lines[end_idx_inclusive + 1 :] if end_idx_inclusive + 1 <= len(lines) else []
-        new_lines = content.splitlines()
-        merged = before + new_lines + after
-        # Join with newlines; preserve trailing newline if present originally
-        new_text = "\n".join(merged)
-        if original.endswith("\n") or new_text and not new_text.endswith("\n"):
+        before = lines[:start]
+        after = lines[end + 1:] if end + 1 <= len(lines) else []
+        new_text = "\n".join(before + content.splitlines() + after)
+        if original.endswith("\n") and not new_text.endswith("\n"):
             new_text += "\n"
 
-        # Write back using a here-doc to avoid shell quoting issues
-        write_cmd = (
-            f"cat > {file_path} << 'MINISWE_EOF'\n"
-            + new_text
-            + "MINISWE_EOF"
-        )
-        try:
-            self.env.execute(write_cmd)
-        except Exception as e:
-            raise ValueError(f"Failed to write file '{file_path}': {e}")
+        # Write back (quoted heredoc prevents expansion)
+        write_cmd = f"cat > {file_path} << 'MINISWE_EOF'\n{new_text}MINISWE_EOF"
+        wres = self.env.execute(write_cmd)
+        if isinstance(wres, dict) and wres.get("returncode", 0):
+            raise ValueError(wres.get("output", ""))
 
         return f"Replaced lines {from_line}-{to_line} in {file_path}."
     
@@ -102,7 +94,7 @@ class SWEEnvironment:
         """
         try:
             # Show file with line numbers for easier referencing
-            output = self.env.execute(f"nl -ba {file_path}")
+            output = self.env.execute(f"nl -ba {file_path}")["output"].strip()
             return output
         except Exception as e:
             raise ValueError(f"Failed to read file '{file_path}': {e}")
