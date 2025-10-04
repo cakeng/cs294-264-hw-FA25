@@ -14,6 +14,15 @@ DATASET_MAPPING = {
     "cs294": "lynnliu030/swebench-eval-subset",
 }
 
+def g_str(s): # green
+    return "\033[32m" + s + "\033[0m"
+def r_str(s): # red
+    return "\033[31m" + s + "\033[0m"
+def b_str(s): # blue
+    return "\033[34m" + s + "\033[0m"
+def y_str(s): # yellow
+    return "\033[33m" + s + "\033[0m"
+
 from agent import ReactAgent
 from llm import OpenAIModel
 from response_parser import ResponseParser
@@ -47,11 +56,11 @@ def process_instance(
         env = SWEEnvironment(instance)
         # Initialize the agent
         agent = ReactAgent("swe-agent", parser, llm)
+        # Register tools available to the agent
+        agent.add_functions([env.run_bash_cmd])
+        # agent.add_functions([env.replace_in_file, env.show_file, agent.add_instructions_and_backtrack])
         # Run the agent
-        output = agent.run(task, max_steps) 
-        
-        # TODO(student): Add more functions here
-        # agent.add_functions([env.run_bash_cmd, env.replace_in_file, env.show_file, ...])
+        output = agent.run(task, max_steps)         
         
         # Generate patch for SWE-Bench
         result = env.generate_patch(output)
@@ -68,7 +77,7 @@ def process_instance(
             instance_id=instance_id,
         )
         update_preds_file(output_dir / "preds.json", instance_id, model_name, result)
-        print(f"Completed instance {instance_id}, result: {result}")
+        print(g_str(f"Completed instance ") + f"{instance_id}" + y_str(f", result: ") + f"{result}")
 
 @app.command(help="Run CS294 HW on subset of SWEBench instances.")
 def main(
@@ -85,7 +94,7 @@ def main(
 
     dataset_path = DATASET_MAPPING.get(subset, subset)
     print(f"Loading dataset {dataset_path}, split {split}...")
-    instances = list(load_dataset(dataset_path, split=split))
+    instances = list(load_dataset(dataset_path, split=split))[:1]
     print(f"Running on {len(instances)} instances...")
 
     def process_futures(futures: dict[concurrent.futures.Future, str]):

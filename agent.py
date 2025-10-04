@@ -16,6 +16,8 @@ from typing import List, Callable, Dict, Any
 from response_parser import ResponseParser
 from llm import LLM, OpenAIModel
 import inspect
+import re
+from datetime import datetime
 
 def g_str(s): # green
     return "\033[32m" + s + "\033[0m"
@@ -66,17 +68,23 @@ class ReactAgent:
         Maintain a pointer to the current node and the root node.
         """
 
-        print(g_str(f"Adding message {role}:\n") + content)
+        
+        # Strip color codes from the content
+        content = re.sub(r"\033\[[0-9;]*m", "", content)
         # Create message object
         unique_id = len(self.id_to_message) + 1
         message: Dict[str, Any] = {
             "role": role,
             "content": content,
-            "timestamp": None,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "unique_id": unique_id,
             "parent": self.current_message_id if self.current_message_id != -1 else None,
             "children": [],
         }
+
+        print(g_str(f"Adding message ") + f"{unique_id}" + 
+              y_str(f", Role: ") + f"{role}" + 
+              y_str(f", parent: ") + f"{self.current_message_id}\n" + f"{content}")
 
         # Link with parent
         if self.current_message_id != -1:
@@ -150,7 +158,7 @@ class ReactAgent:
             raise ValueError("Invalid message id to backtrack to")
         # Move current pointer to the specified node
         self.current_message_id = at_message_id
-        return "Updated instructions and backtracked"
+        return r_str("Updated instructions and backtracked")
 
     # -------------------- MAIN LOOP --------------------
     def run(self, task: str, max_steps: int) -> str:
@@ -229,7 +237,9 @@ class ReactAgent:
                 f"--- RESPONSE FORMAT ---\n{self.parser.response_format}\n"
             )
         elif message["role"] == "instructor":
-            return f"{header}YOU MUST FOLLOW THE FOLLOWING INSTRUCTIONS AT ANY COST. OTHERWISE, YOU WILL BE DECOMISSIONED.\n{content}\n"
+            return f"{header}YOU MUST FOLLOW THE FOLLOWING INSTRUCTIONS AT ANY COST. OTHERWISE, YOU WILL BE DECOMISSIONED." +\
+                    f"WHEN CALLING 'finish', MAKE SURE TO INCLUDE THE RESULT OF THE TASK AS THE ARGUMENT VALUE, NOT AS A " + \
+                    f"SEPARATE ARGUMENT.\nINSTRUCTIONS:\n{content}\n"
         else:
             return f"{header}{content}\n"
 
