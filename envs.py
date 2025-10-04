@@ -39,7 +39,23 @@ class SWEEnvironment:
         except TimeoutError:
             raise ValueError("TimeoutError")
         return output
-    
+    def _extract_unified_diff(self, text: str) -> str:
+        if not text:
+            return ""
+        # Prefer unified diffs that start with `diff --git`
+        i = text.rfind("\ndiff --git ")
+        if i == -1:
+            i = text.find("diff --git ")
+        if i != -1:
+            return text[i:].rstrip("\n") + "\n"
+        # Fallback: look for classic headers
+        j = text.rfind("\n--- a/")
+        if j == -1:
+            j = text.find("--- a/")
+        if j != -1:
+            return text[j:].rstrip("\n") + "\n"
+        return ""
+
     def generate_patch(self, result: str) -> str:
         """
         Generate a patch from the result (for SWE-Bench)
@@ -48,8 +64,12 @@ class SWEEnvironment:
             patch_output = self.env.execute("git add -A && git diff --cached")
             print(y_str(f"Patch output: ") + f"{patch_output}")
             if patch_output["output"].strip():
-                return patch_output
+                return patch_output["output"].strip()
             else:
+                fallback = self._extract_unified_diff(result or "")
+                if fallback:
+                    print(y_str(f"Fallback patch: ") + f"{fallback}")
+                    return fallback
                 return f"{result}\n\nNo changes detected to generate a patch."
         except Exception as e:
             return f"{result}\n\nError running git commands: {e}"
@@ -98,6 +118,7 @@ class SWEEnvironment:
             return output
         except Exception as e:
             raise ValueError(f"Failed to read file '{file_path}': {e}")
+
 
 class DumbEnvironment:
     """
